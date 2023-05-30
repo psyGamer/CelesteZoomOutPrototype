@@ -14,27 +14,86 @@ namespace Celeste.Mod.ZoomOut;
 public static class GameSizeUnInliner
 {
     private static IDetour Player_get_CameraTarget_hook;
+    private static IDetour Parallax_orig_Render_hook;
 
     public static void Load()
     {
+        // Core-Mechanic Hooks
         IL.Celeste.Audio.Position += Audio_Position;
+        
         IL.Celeste.BloomRenderer.Apply += BloomRenderer_Apply;
+
         IL.Celeste.GameplayBuffers.Create += GameplayBuffers_Create;
         IL.Celeste.GameplayRenderer.ctor += GameplayRenderer_ctor;
+
         IL.Celeste.Level.Render += Level_Render;
         IL.Celeste.Level.ResetZoom += Level_ResetZoom;
         IL.Celeste.Level.EnforceBounds += Level_EnforceBounds;
         IL.Celeste.Level.IsInCamera += Level_IsInCamera;
-        IL.Celeste.Parallax.Render += Parallax_Render;
-        IL.Celeste.Starfield.ctor += Starfield_ctor;
-        IL.Celeste.Starfield.Render += Starfield_Render;
-        IL.Celeste.StarsBG.ctor += StarsBG_ctor;
-        IL.Celeste.StarsBG.Render += StarsBG_Render;
 
         Player_get_CameraTarget_hook = new ILHook(
             typeof(Player).GetProperty("CameraTarget").GetGetMethod(),
             Player_get_CameraTarget
         );
+
+        // Backdrop Hooks
+        IL.Celeste.BlackholeBG.ctor += BlackholeBG_ctor;
+        IL.Celeste.BlackholeBG.Update += BlackholeBG_Update;
+        IL.Celeste.BlackholeBG.BeforeRender += BlackholeBG_BeforeRender;
+
+        IL.Celeste.CoreStarsFG.Reset += CoreStarsFG_Reset;
+        IL.Celeste.CoreStarsFG.Render += CoreStarsFG_Render;
+
+        IL.Celeste.DreamStars.ctor += DreamStars_ctor;
+        IL.Celeste.DreamStars.Render += DreamStars_Render;
+
+        IL.Celeste.FinalBossStarfield.ctor += FinalBossStarfield_ctor;
+        IL.Celeste.FinalBossStarfield.Render += FinalBossStarfield_Render;
+
+        IL.Celeste.Godrays.Update += Godrays_Update;
+        IL.Celeste.Godrays.Ray.Reset += Godrays_Ray_Reset;
+
+        IL.Celeste.HeatWave.Reset += HeatWave_Reset;
+        IL.Celeste.HeatWave.Render += HeatWave_Render;
+
+        IL.Celeste.MirrorFG.Reset += MirrorFG_Reset;
+        IL.Celeste.MirrorFG.Render += MirrorFG_Render;
+
+        IL.Celeste.NorthernLights.ctor += NorthernLights_ctor;
+        IL.Celeste.NorthernLights.BeforeRender += NorthernLights_BeforeRender;
+
+        // Both orig and patched use the same layout
+        IL.Celeste.Parallax.Render += Parallax_patched_Render;
+        Parallax_orig_Render_hook = new ILHook(
+            typeof(Parallax).GetMethod("orig_Render", BindingFlags.Instance | BindingFlags.Public),
+            Parallax_orig_Render
+        );
+
+        IL.Celeste.Petals.Reset += Petals_Reset;
+        IL.Celeste.Petals.Render += Petals_Render;
+
+        IL.Celeste.Planets.ctor += Planets_ctor;
+        IL.Celeste.Planets.Render += Planets_Render;
+
+        IL.Celeste.RainFG.Update += RainFG_Update;
+        IL.Celeste.RainFG.Render += RainFG_Render;
+        IL.Celeste.RainFG.Particle.Init += RainFG_Particle_Init;
+
+        IL.Celeste.ReflectionFG.Reset += ReflectionFG_Reset;
+        IL.Celeste.ReflectionFG.Render += ReflectionFG_Render;
+
+        IL.Celeste.Snow.Update += Snow_Update;
+        IL.Celeste.Snow.Render += Snow_Render;
+        IL.Celeste.Snow.Particle.Init += Snow_Particle_Init;
+
+        IL.Celeste.StardustFG.Reset += StardustFG_Reset;
+        IL.Celeste.StardustFG.Render += StardustFG_Render;
+
+        IL.Celeste.Starfield.ctor += Starfield_ctor;
+        IL.Celeste.Starfield.Render += Starfield_Render;
+
+        IL.Celeste.StarsBG.ctor += StarsBG_ctor;
+        IL.Celeste.StarsBG.Render += StarsBG_Render;
     }
 
     public static void Unload()
@@ -47,7 +106,7 @@ public static class GameSizeUnInliner
         IL.Celeste.Level.ResetZoom -= Level_ResetZoom;
         IL.Celeste.Level.EnforceBounds -= Level_EnforceBounds;
         IL.Celeste.Level.IsInCamera -= Level_IsInCamera;
-        IL.Celeste.Parallax.Render -= Parallax_Render;
+        IL.Celeste.Parallax.Render -= Parallax_patched_Render;
         IL.Celeste.Starfield.ctor -= Starfield_ctor;
         IL.Celeste.Starfield.Render -= Starfield_Render;
         IL.Celeste.StarsBG.ctor -= StarsBG_ctor;
@@ -152,6 +211,21 @@ public static class GameSizeUnInliner
             Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name} for {target} (FloatHalf)");
         }
     }
+    private static void FindAndReplace_FloatMul(this ILCursor cursor, string fieldName, float target, float multiplier)
+    {
+        if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcR4(target)))
+        {
+            cursor.Emit(OpCodes.Pop);
+            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
+            cursor.Emit(OpCodes.Conv_R4);
+            cursor.Emit(OpCodes.Ldc_R4, multiplier);
+            cursor.Emit(OpCodes.Mul);
+        }
+        else
+        {
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name} for {target} (FloatMul)");
+        }
+    }
 
     private static void FindAndReplace_GameWidth_Int(this ILCursor cursor)
         => cursor.FindAndReplace_Int(nameof(ZoomOutModule.GameWidth), 320);
@@ -184,9 +258,14 @@ public static class GameSizeUnInliner
     private static void FindAndReplace_GameHeight_FloatHalf(this ILCursor cursor)
         => cursor.FindAndReplace_FloatHalf(nameof(ZoomOutModule.GameHeight), 90.0f);
 
+    private static void FindAndReplace_GameWidth_FloatMul(this ILCursor cursor, float target, float multiplier)
+        => cursor.FindAndReplace_FloatMul(nameof(ZoomOutModule.GameWidth), target, multiplier);
+    private static void FindAndReplace_GameHeight_FloatMul(this ILCursor cursor, float target, float multiplier)
+        => cursor.FindAndReplace_FloatMul(nameof(ZoomOutModule.GameHeight), target, multiplier);
+
 #endregion
 
-#region Hooks
+#region Core-Mechanic Hooks
 
     private static void Audio_Position(ILContext ctx)
     {
@@ -311,16 +390,6 @@ public static class GameSizeUnInliner
         cursor.FindAndReplace_GameHeight_Float();
     }
 
-    private static void Parallax_Render(ILContext ctx)
-    {
-        var cursor = new ILCursor(ctx);
-        cursor.FindAndReplace_GameWidth_FloatHalf();
-        cursor.FindAndReplace_GameHeight_FloatHalf();
-
-        cursor.FindAndReplace_GameWidth_Float();
-        cursor.FindAndReplace_GameHeight_Float();
-    }
-
     private delegate void FixPlayerCameraDelegate(Player self, ref Vector2 at, ref Vector2 target);
     private static void fixPlayerCamera(Player self, ref Vector2 at, ref Vector2 target)
     {
@@ -373,17 +442,261 @@ public static class GameSizeUnInliner
         }
     }
 
-    private static void Starfield_ctor(ILContext ctx)
+#endregion
+
+#region Backdrop Hooks
+
+    private static void BlackholeBG_ctor(ILContext ctx)
     {
         var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+    private static void BlackholeBG_Update(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+    private static void BlackholeBG_BeforeRender(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Int();
+        cursor.FindAndReplace_GameHeight_Int();
+    }
+
+    private static void CoreStarsFG_Reset(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Int();
+        cursor.FindAndReplace_GameHeight_Int();
+    }
+    private static void CoreStarsFG_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
         cursor.FindAndReplace_GameHeight_Float();
     }
 
+    private static void DreamStars_ctor(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+    private static void DreamStars_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void FinalBossStarfield_ctor(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_IntAdd(384, 64);
+        cursor.FindAndReplace_GameHeight_IntAdd(244, 64);
+    }
+    private static void FinalBossStarfield_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatAdd(330.0f, 10);
+
+        cursor.FindAndReplace_GameWidth_FloatAdd(330.0f, 10);
+        cursor.FindAndReplace_GameWidth_FloatAdd(190.0f, 10);
+
+        cursor.FindAndReplace_GameWidth_FloatAdd(330.0f, 10);
+        cursor.FindAndReplace_GameWidth_FloatAdd(190.0f, 10);
+
+        cursor.FindAndReplace_GameWidth_FloatAdd(190.0f, 10);
+
+        cursor.FindAndReplace_GameWidth_FloatAdd(384.0f, 64);
+        cursor.FindAndReplace_GameWidth_FloatAdd(244.0f, 64);
+    }
+
+    private static void Godrays_Update(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatAdd(384.0f, 64);
+        cursor.FindAndReplace_GameHeight_FloatAdd(244.0f, 64);
+    }
+    private static void Godrays_Ray_Reset(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatAdd(384.0f, 64);
+        cursor.FindAndReplace_GameHeight_FloatAdd(244.0f, 64);
+    }
+
+    private static void HeatWave_Reset(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Int();
+        cursor.FindAndReplace_GameHeight_Int();
+    }
+    private static void HeatWave_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void MirrorFG_Reset(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Int();
+        cursor.FindAndReplace_GameHeight_Int();
+    }
+    private static void MirrorFG_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void NorthernLights_ctor(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Int();
+        cursor.FindAndReplace_GameHeight_Int();
+
+        cursor.FindAndReplace_GameWidth_Float();
+
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+    private static void NorthernLights_BeforeRender(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Int();
+        cursor.FindAndReplace_GameHeight_Int();
+
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void Parallax_orig_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatHalf();
+        cursor.FindAndReplace_GameHeight_FloatHalf();
+
+        cursor.FindAndReplace_GameHeight_Float();
+        cursor.FindAndReplace_GameWidth_Float();
+    }
+    private static void Parallax_patched_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatHalf();
+        cursor.FindAndReplace_GameHeight_FloatHalf();
+
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void Petals_Reset(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_IntAdd(352, 32);
+        cursor.FindAndReplace_GameHeight_IntAdd(212, 32);
+    }
+    private static void Petals_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatAdd(352, 32);
+        cursor.FindAndReplace_GameHeight_FloatAdd(212, 32);
+    }
+
+    private static void Planets_ctor(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatMul(640.0f, 2.0f);
+        cursor.FindAndReplace_GameHeight_FloatMul(360.0f, 2.0f);
+    }
+    private static void Planets_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatMul(640.0f, 2.0f);
+        cursor.FindAndReplace_GameHeight_FloatMul(360.0f, 2.0f);
+    }
+
+    private static void RainFG_Update(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatHalf();
+    }
+    private static void RainFG_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatAdd(384.0f, 64);
+        cursor.FindAndReplace_GameHeight_FloatAdd(244.0f, 64);
+    }
+    private static void RainFG_Particle_Init(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatAdd(384.0f, 64);
+        cursor.FindAndReplace_GameHeight_FloatAdd(244.0f, 64);
+    }
+
+    private static void ReflectionFG_Reset(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Int();
+        cursor.FindAndReplace_GameHeight_Int();
+    }
+    private static void ReflectionFG_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void Snow_Update(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatHalf();
+    }
+    private static void Snow_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+    private static void Snow_Particle_Init(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void StardustFG_Reset(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Int();
+        cursor.FindAndReplace_GameHeight_Int();
+    }
+    private static void StardustFG_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    // TODO: Change star count to properly fix this
+    private static void Starfield_ctor(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        //cursor.FindAndReplace_GameHeight_Float();
+    }
     private static void Starfield_Render(ILContext ctx)
     {
         var cursor = new ILCursor(ctx);
-        cursor.FindAndReplace_GameWidth_FloatAdd(448.0f, 128);
-        cursor.FindAndReplace_GameHeight_FloatAdd(212.0f, 32);
+        //cursor.FindAndReplace_GameWidth_FloatAdd(448.0f, 128);
+        //cursor.FindAndReplace_GameHeight_FloatAdd(212.0f, 32);
     }
 
     private static void StarsBG_ctor(ILContext ctx)
@@ -392,7 +705,6 @@ public static class GameSizeUnInliner
         cursor.FindAndReplace_GameWidth_Float();
         cursor.FindAndReplace_GameHeight_Float();
     }
-
     private static void StarsBG_Render(ILContext ctx)
     {
         var cursor = new ILCursor(ctx);
@@ -403,5 +715,35 @@ public static class GameSizeUnInliner
         cursor.FindAndReplace_GameHeight_Float();
     }
 
+    private static void Tentacles_ctor(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameHeight_Float();
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_FloatHalf();
+
+        cursor.FindAndReplace_GameHeight_Float();
+        cursor.FindAndReplace_GameHeight_FloatHalf();
+
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameWidth_FloatHalf();
+
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameWidth_FloatHalf();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+    private static void Tentacles_Update(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameWidth_FloatHalf();
+
+        cursor.FindAndReplace_GameHeight_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    // TODO: WindSnowFG, which uses member variables instead of inlining
+
 #endregion
+
 }
