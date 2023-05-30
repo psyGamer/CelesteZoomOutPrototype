@@ -1,16 +1,20 @@
 using System;
+using System.Reflection;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Mono.Cecil.Cil;
 using Monocle;
 using MonoMod.Cil;
+using MonoMod.RuntimeDetour;
 using Celeste;
 
 namespace Celeste.Mod.ZoomOut;
 
 public static class GameSizeUnInliner
 {
+    private static IDetour Player_get_CameraTarget_hook;
+
     public static void Load()
     {
         IL.Celeste.Audio.Position += Audio_Position;
@@ -21,6 +25,16 @@ public static class GameSizeUnInliner
         IL.Celeste.Level.ResetZoom += Level_ResetZoom;
         IL.Celeste.Level.EnforceBounds += Level_EnforceBounds;
         IL.Celeste.Level.IsInCamera += Level_IsInCamera;
+        IL.Celeste.Parallax.Render += Parallax_Render;
+        IL.Celeste.Starfield.ctor += Starfield_ctor;
+        IL.Celeste.Starfield.Render += Starfield_Render;
+        IL.Celeste.StarsBG.ctor += StarsBG_ctor;
+        IL.Celeste.StarsBG.Render += StarsBG_Render;
+
+        Player_get_CameraTarget_hook = new ILHook(
+            typeof(Player).GetProperty("CameraTarget").GetGetMethod(),
+            Player_get_CameraTarget
+        );
     }
 
     public static void Unload()
@@ -33,6 +47,13 @@ public static class GameSizeUnInliner
         IL.Celeste.Level.ResetZoom -= Level_ResetZoom;
         IL.Celeste.Level.EnforceBounds -= Level_EnforceBounds;
         IL.Celeste.Level.IsInCamera -= Level_IsInCamera;
+        IL.Celeste.Parallax.Render -= Parallax_Render;
+        IL.Celeste.Starfield.ctor -= Starfield_ctor;
+        IL.Celeste.Starfield.Render -= Starfield_Render;
+        IL.Celeste.StarsBG.ctor -= StarsBG_ctor;
+        IL.Celeste.StarsBG.Render -= StarsBG_Render;
+
+        Player_get_CameraTarget_hook.Dispose();
     }
 
     private static void PrintInstructions(ILContext ctx)
@@ -40,7 +61,7 @@ public static class GameSizeUnInliner
         foreach (var instr in ctx.Instrs)
         {
             try { Console.WriteLine($"{instr.Offset}:{instr.ToString()}"); }
-            catch (Exception) {}
+            catch (Exception) { Console.WriteLine($"{instr.Offset}:{instr.OpCode}"); }
         }
     }
 
@@ -52,7 +73,7 @@ public static class GameSizeUnInliner
         if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcI4(target)))
         {
             cursor.Emit(OpCodes.Pop);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, nameof(ZoomOutModule.GameWidth));
+            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
         }
         else
         {
@@ -93,7 +114,7 @@ public static class GameSizeUnInliner
         if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcR4(target)))
         {
             cursor.Emit(OpCodes.Pop);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, nameof(ZoomOutModule.GameWidth));
+            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
             cursor.Emit(OpCodes.Conv_R4);
         }
         else
@@ -170,23 +191,16 @@ public static class GameSizeUnInliner
     private static void Audio_Position(ILContext ctx)
     {
         var cursor = new ILCursor(ctx);
-        if (cursor.TryGotoNext(instr => instr.MatchCallvirt<Camera>("get_Position")))
-        {
-            cursor.FindAndReplace_GameWidth_Float();
-            cursor.FindAndReplace_GameHeight_Float();
-        }
-        else
-        {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {ctx.Method.Name}");
-        }
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
     }
 
     private static void BloomRenderer_Apply(ILContext ctx)
     {
         var cursor = new ILCursor(ctx);
-        if (cursor.TryGotoNext(instr => instr.MatchCallvirt<SpriteBatch>(nameof(SpriteBatch.Begin))) &&
-            cursor.TryGotoNext(instr => instr.MatchCallvirt<SpriteBatch>(nameof(SpriteBatch.Begin))) &&
-            cursor.TryGotoNext(instr => instr.MatchCallvirt<SpriteBatch>(nameof(SpriteBatch.Begin))))
+        if (cursor.TryGotoNext(instr => instr.MatchCallvirt<SpriteBatch>("Begin")) &&
+            cursor.TryGotoNext(instr => instr.MatchCallvirt<SpriteBatch>("Begin")) &&
+            cursor.TryGotoNext(instr => instr.MatchCallvirt<SpriteBatch>("Begin")))
         {
             cursor.FindAndReplace_GameWidth_FloatAdd(340.0f, 20);
             cursor.FindAndReplace_GameHeight_FloatAdd(200.0f, 20);
@@ -248,9 +262,9 @@ public static class GameSizeUnInliner
     private static void Level_Render(ILContext ctx)
     {
         var cursor = new ILCursor(ctx);
-        if (cursor.TryGotoNext(instr => instr.MatchCall<Matrix>(nameof(Matrix.CreateScale))))
+        if (cursor.TryGotoNext(instr => instr.MatchCall<Matrix>("CreateScale")))
         {
-            // Zoom out
+            // Zoom out depending on GameScale
             cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, nameof(ZoomOutModule.GameScale));
             cursor.Emit(OpCodes.Div);
 
@@ -288,6 +302,105 @@ public static class GameSizeUnInliner
         var cursor = new ILCursor(ctx);
         cursor.FindAndReplace_GameWidth_Int();
         cursor.FindAndReplace_GameHeight_Int();
+    }
+
+    private static void LightingRenderer_BeforeRender(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void Parallax_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatHalf();
+        cursor.FindAndReplace_GameHeight_FloatHalf();
+
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private delegate void FixPlayerCameraDelegate(Player self, ref Vector2 at, ref Vector2 target);
+    private static void fixPlayerCamera(Player self, ref Vector2 at, ref Vector2 target)
+    {
+        // For some reason the Clamp from Calc.cs behaves differently than from MathHelper?
+        at.X = Calc.Clamp(target.X, self.level.Bounds.Left, self.level.Bounds.Right - ZoomOutModule.GameWidth);
+        at.Y = Calc.Clamp(target.Y, self.level.Bounds.Top, self.level.Bounds.Bottom - ZoomOutModule.GameHeight);
+
+        // Center the camera if the bounds are too small
+        if (self.level.Bounds.Width < ZoomOutModule.GameWidth)
+            at.X -= (self.level.Bounds.Width - ZoomOutModule.GameWidth) / 2.0f;
+        if (self.level.Bounds.Height < ZoomOutModule.GameHeight)
+            at.Y -= (self.level.Bounds.Height - ZoomOutModule.GameHeight) / 2.0f;
+    }
+
+    private static void Player_get_CameraTarget(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        var Calc_Clamp = typeof(Calc).GetMethod("Clamp", BindingFlags.Static | BindingFlags.Public, new Type[]{ typeof(float), typeof(float), typeof(float) });
+
+        cursor.FindAndReplace_GameWidth_FloatHalf();
+        cursor.FindAndReplace_GameHeight_FloatHalf();
+
+        VariableDefinition atVectorDef = ctx.Body.Variables[0];
+        VariableDefinition targetVectorDef = ctx.Body.Variables[1];
+
+        if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdfld<Player>("EnforceLevelBounds"),
+                                               instr => instr.OpCode == OpCodes.Brfalse))
+        {
+            cursor.Emit(OpCodes.Ldarg_0);
+            cursor.Emit(OpCodes.Ldloca_S, atVectorDef);
+            cursor.Emit(OpCodes.Ldloca_S, targetVectorDef);
+            cursor.EmitDelegate<FixPlayerCameraDelegate>(fixPlayerCamera);
+
+            ILLabel label = null;
+            int index = cursor.Index;
+            cursor.TryGotoNext(instr => instr.MatchBr(out label));
+
+            if (label == null)
+            {
+                Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to find branch label at {cursor.Context.Method.Name}");
+                return;
+            }
+
+            cursor.Index = index;
+            cursor.Emit(OpCodes.Br_S, label); // Skip everything else since that's done in fixPlayerCamrea
+        }
+        else
+        {
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to insert centerPlayerCamera delegate at {cursor.Context.Method.Name}");
+        }
+    }
+
+    private static void Starfield_ctor(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void Starfield_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatAdd(448.0f, 128);
+        cursor.FindAndReplace_GameHeight_FloatAdd(212.0f, 32);
+    }
+
+    private static void StarsBG_ctor(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void StarsBG_Render(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+
+        cursor.FindAndReplace_GameHeight_Float();
+        cursor.FindAndReplace_GameHeight_Float();
     }
 
 #endregion
