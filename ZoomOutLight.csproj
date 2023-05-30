@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <AssemblyName>ZoomOut</AssemblyName>
+        <RootNamespace>Celeste.Mod.ZoomOut</RootNamespace>
+        <LangVersion>latest</LangVersion>
+        <IgnoresAccessChecksTo>true</IgnoresAccessChecksTo>
+    </PropertyGroup>
+
+    <!--Disable "Copy Local" for all references-->
+    <ItemDefinitionGroup>
+        <PackageReference PrivateAssets="all" ExcludeAssets="runtime" />
+        <Reference Private="false" />
+    </ItemDefinitionGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MonoMod.RuntimeDetour" Version="22.07.31.01" PrivateAssets="all" ExcludeAssets="runtime" />
+        <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.1" PrivateAssets="all" />
+
+        <Reference Include="lib-stripped/Celeste.dll" Publicize="true">
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="lib-stripped/MMHOOK_Celeste.dll" Publicize="true" >
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="lib-stripped/FNA.dll" Publicize="true">
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <Target Name="CopyFiles" AfterTargets="Build">
+        <Copy SourceFiles="$(OutputPath)/$(AssemblyName).dll" DestinationFolder="bin" />
+    </Target>
+</Project>
