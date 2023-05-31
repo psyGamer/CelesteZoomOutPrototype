@@ -43,6 +43,7 @@ public static class GameSizeUnInliner
 
         /// Other Entity Hooks ///
         IL.Celeste.CrystalStaticSpinner.InView += CrystalStaticSpinner_InView;
+        IL.Celeste.DustEdges.BeforeRender += DustEdges_BeforeRender;
         IL.Celeste.Lightning.InView += Lightning_InView;
 
         /// Backdrop Hooks ///
@@ -140,6 +141,7 @@ public static class GameSizeUnInliner
 
         /// Other Entity Hooks ///
         IL.Celeste.CrystalStaticSpinner.InView -= CrystalStaticSpinner_InView;
+        IL.Celeste.DustEdges.BeforeRender -= DustEdges_BeforeRender;
         IL.Celeste.Lightning.InView -= Lightning_InView;
 
         /// Backdrop Hooks ///
@@ -548,6 +550,44 @@ public static class GameSizeUnInliner
         var cursor = new ILCursor(ctx);
         cursor.FindAndReplace_GameWidth_Float();
         cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void DustEdges_BeforeRender(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+
+        // 1.0f / GameWidth
+        if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcR4(0.003125f)))
+        {
+            cursor.Emit(OpCodes.Pop);
+            cursor.Emit(OpCodes.Ldc_R4, 1.0f);
+            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, nameof(ZoomOutModule.GameWidth));
+            cursor.Emit(OpCodes.Conv_R4);
+            cursor.Emit(OpCodes.Div);
+        }
+        else
+        {
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name}");
+        }
+
+        // 1.0f / GameHeight
+        if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcR4(0.0055555557f)))
+        {
+            cursor.Emit(OpCodes.Pop);
+            cursor.Emit(OpCodes.Ldc_R4, 1.0f);
+            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, nameof(ZoomOutModule.GameWidth));
+            cursor.Emit(OpCodes.Conv_R4);
+            cursor.Emit(OpCodes.Div);
+        }
+        else
+        {
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name}");
+        }
     }
 
     private static void Lightning_InView(ILContext ctx)
