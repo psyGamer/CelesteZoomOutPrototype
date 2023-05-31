@@ -1,13 +1,11 @@
 using System;
 using System.Reflection;
-using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Mono.Cecil.Cil;
-using Monocle;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
-using Celeste;
+using Monocle;
 
 namespace Celeste.Mod.ZoomOut;
 
@@ -16,9 +14,12 @@ public static class GameSizeUnInliner
     private static IDetour Player_get_CameraTarget_hook;
     private static IDetour Parallax_orig_Render_hook;
 
+    private static IDetour FrostHelper_CustomSpinner_InView_hook;
+    private static IDetour FrostHelper_HDlesteCompat_get_Scale_hook;
+
     public static void Load()
     {
-        // Core-Mechanic Hooks
+        /// Core-Mechanic Hooks ///
         IL.Celeste.Audio.Position += Audio_Position;
         
         IL.Celeste.BloomRenderer.Apply += BloomRenderer_Apply;
@@ -31,12 +32,20 @@ public static class GameSizeUnInliner
         IL.Celeste.Level.EnforceBounds += Level_EnforceBounds;
         IL.Celeste.Level.IsInCamera += Level_IsInCamera;
 
+        IL.Celeste.LightingRenderer.BeforeRender += LightingRenderer_BeforeRender;
+
+        IL.Celeste.LightningRenderer.OnRenderBloom += LightningRenderer_OnRenderBloom;
+
         Player_get_CameraTarget_hook = new ILHook(
             typeof(Player).GetProperty("CameraTarget").GetGetMethod(),
             Player_get_CameraTarget
         );
 
-        // Backdrop Hooks
+        /// Other Entity Hooks ///
+        IL.Celeste.CrystalStaticSpinner.InView += CrystalStaticSpinner_InView;
+        IL.Celeste.Lightning.InView += Lightning_InView;
+
+        /// Backdrop Hooks ///
         IL.Celeste.BlackholeBG.ctor += BlackholeBG_ctor;
         IL.Celeste.BlackholeBG.Update += BlackholeBG_Update;
         IL.Celeste.BlackholeBG.BeforeRender += BlackholeBG_BeforeRender;
@@ -96,23 +105,104 @@ public static class GameSizeUnInliner
         IL.Celeste.StarsBG.Render += StarsBG_Render;
     }
 
+    public static void Load_FrostHelper()
+    {
+        FrostHelper_CustomSpinner_InView_hook = new ILHook(
+            typeof(FrostHelper.CustomSpinner).GetMethod("InView", BindingFlags.Instance | BindingFlags.NonPublic),
+            FrostHelper_CustomSpinner_InView
+        );
+        FrostHelper_HDlesteCompat_get_Scale_hook = new ILHook(
+            typeof(FrostHelper.ModIntegration.HDlesteCompat).GetProperty("Scale").GetGetMethod(),
+            FrostHelper_HDlesteCompat_get_Scale
+        );
+    }
+
     public static void Unload()
     {
+        /// Core-Mechanic Hooks ///
         IL.Celeste.Audio.Position -= Audio_Position;
+        
         IL.Celeste.BloomRenderer.Apply -= BloomRenderer_Apply;
+
         IL.Celeste.GameplayBuffers.Create -= GameplayBuffers_Create;
         IL.Celeste.GameplayRenderer.ctor -= GameplayRenderer_ctor;
+
         IL.Celeste.Level.Render -= Level_Render;
         IL.Celeste.Level.ResetZoom -= Level_ResetZoom;
         IL.Celeste.Level.EnforceBounds -= Level_EnforceBounds;
         IL.Celeste.Level.IsInCamera -= Level_IsInCamera;
-        IL.Celeste.Parallax.Render -= Parallax_patched_Render;
-        IL.Celeste.Starfield.ctor -= Starfield_ctor;
-        IL.Celeste.Starfield.Render -= Starfield_Render;
-        IL.Celeste.StarsBG.ctor -= StarsBG_ctor;
-        IL.Celeste.StarsBG.Render -= StarsBG_Render;
+
+        IL.Celeste.LightingRenderer.BeforeRender -= LightingRenderer_BeforeRender;
+
+        IL.Celeste.LightningRenderer.OnRenderBloom -= LightningRenderer_OnRenderBloom;
 
         Player_get_CameraTarget_hook.Dispose();
+
+        /// Other Entity Hooks ///
+        IL.Celeste.CrystalStaticSpinner.InView -= CrystalStaticSpinner_InView;
+        IL.Celeste.Lightning.InView -= Lightning_InView;
+
+        /// Backdrop Hooks ///
+        IL.Celeste.BlackholeBG.ctor -= BlackholeBG_ctor;
+        IL.Celeste.BlackholeBG.Update -= BlackholeBG_Update;
+        IL.Celeste.BlackholeBG.BeforeRender -= BlackholeBG_BeforeRender;
+
+        IL.Celeste.CoreStarsFG.Reset -= CoreStarsFG_Reset;
+        IL.Celeste.CoreStarsFG.Render -= CoreStarsFG_Render;
+
+        IL.Celeste.DreamStars.ctor -= DreamStars_ctor;
+        IL.Celeste.DreamStars.Render -= DreamStars_Render;
+
+        IL.Celeste.FinalBossStarfield.ctor -= FinalBossStarfield_ctor;
+        IL.Celeste.FinalBossStarfield.Render -= FinalBossStarfield_Render;
+
+        IL.Celeste.Godrays.Update -= Godrays_Update;
+        IL.Celeste.Godrays.Ray.Reset -= Godrays_Ray_Reset;
+
+        IL.Celeste.HeatWave.Reset -= HeatWave_Reset;
+        IL.Celeste.HeatWave.Render -= HeatWave_Render;
+
+        IL.Celeste.MirrorFG.Reset -= MirrorFG_Reset;
+        IL.Celeste.MirrorFG.Render -= MirrorFG_Render;
+
+        IL.Celeste.NorthernLights.ctor -= NorthernLights_ctor;
+        IL.Celeste.NorthernLights.BeforeRender -= NorthernLights_BeforeRender;
+
+        // Both orig and patched use the same layout
+        IL.Celeste.Parallax.Render -= Parallax_patched_Render;
+        Parallax_orig_Render_hook.Dispose();
+
+        IL.Celeste.Petals.Reset -= Petals_Reset;
+        IL.Celeste.Petals.Render -= Petals_Render;
+
+        IL.Celeste.Planets.ctor -= Planets_ctor;
+        IL.Celeste.Planets.Render -= Planets_Render;
+
+        IL.Celeste.RainFG.Update -= RainFG_Update;
+        IL.Celeste.RainFG.Render -= RainFG_Render;
+        IL.Celeste.RainFG.Particle.Init -= RainFG_Particle_Init;
+
+        IL.Celeste.ReflectionFG.Reset -= ReflectionFG_Reset;
+        IL.Celeste.ReflectionFG.Render -= ReflectionFG_Render;
+
+        IL.Celeste.Snow.Update -= Snow_Update;
+        IL.Celeste.Snow.Render -= Snow_Render;
+        IL.Celeste.Snow.Particle.Init -= Snow_Particle_Init;
+
+        IL.Celeste.StardustFG.Reset -= StardustFG_Reset;
+        IL.Celeste.StardustFG.Render -= StardustFG_Render;
+
+        IL.Celeste.Starfield.ctor -= Starfield_ctor;
+        IL.Celeste.Starfield.Render -= Starfield_Render;
+
+        IL.Celeste.StarsBG.ctor -= StarsBG_ctor;
+        IL.Celeste.StarsBG.Render -= StarsBG_Render;
+    }
+
+    public static void Unload_FrostHelper()
+    {
+        FrostHelper_CustomSpinner_InView_hook.Dispose();
+        FrostHelper_HDlesteCompat_get_Scale_hook.Dispose();
     }
 
     private static void PrintInstructions(ILContext ctx)
@@ -390,6 +480,13 @@ public static class GameSizeUnInliner
         cursor.FindAndReplace_GameHeight_Float();
     }
 
+    private static void LightningRenderer_OnRenderBloom(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
     private delegate void FixPlayerCameraDelegate(Player self, ref Vector2 at, ref Vector2 target);
     private static void fixPlayerCamera(Player self, ref Vector2 at, ref Vector2 target)
     {
@@ -440,6 +537,24 @@ public static class GameSizeUnInliner
         {
             Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to insert centerPlayerCamera delegate at {cursor.Context.Method.Name}");
         }
+    }
+
+#endregion
+
+#region Other Entity Hooks
+
+    private static void CrystalStaticSpinner_InView(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
+    }
+
+    private static void Lightning_InView(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_Float();
+        cursor.FindAndReplace_GameHeight_Float();
     }
 
 #endregion
@@ -743,6 +858,24 @@ public static class GameSizeUnInliner
     }
 
     // TODO: WindSnowFG, which uses member variables instead of inlining
+
+#endregion
+
+#region Mod Compatability Hooks
+
+    private static void FrostHelper_CustomSpinner_InView(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.FindAndReplace_GameWidth_FloatAdd(336.0f, 16);
+        cursor.FindAndReplace_GameHeight_FloatAdd(196.0f, 16);
+    }
+
+    private static void FrostHelper_HDlesteCompat_get_Scale(ILContext ctx)
+    {
+        var cursor = new ILCursor(ctx);
+        cursor.Emit(OpCodes.Ldc_I4_1);
+        cursor.Emit(OpCodes.Ret);
+    }
 
 #endregion
 

@@ -1,14 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using Microsoft.Xna.Framework;
-using Mono.Cecil.Cil;
-using Monocle;
-using MonoMod.Cil;
-using Celeste;
 
 namespace Celeste.Mod.ZoomOut;
 
@@ -25,6 +15,13 @@ public class ZoomOutModule : EverestModule
     public override Type SessionType => typeof(ZoomOutSession);
     public static ZoomOutSession Session => (ZoomOutSession) Instance._Session;
 
+    private static readonly EverestModuleMetadata _FrostHelperModule = new EverestModuleMetadata()
+    {
+        Name = "FrostHelper",
+        Version = new Version(1, 41, 0)
+    };
+    private bool _FrostHelperLoaded = false;
+
     public ZoomOutModule()
     {
         Instance = this;
@@ -32,11 +29,15 @@ public class ZoomOutModule : EverestModule
 
     public override void Load()
     {
+        _FrostHelperLoaded = Everest.Loader.DependencyLoaded(_FrostHelperModule);
+
         GameSizeUnInliner.Load();
+        if (_FrostHelperLoaded) GameSizeUnInliner.Load_FrostHelper();
     }
 
     public override void Unload()
     {
         GameSizeUnInliner.Unload();
+        if (_FrostHelperLoaded) GameSizeUnInliner.Unload_FrostHelper();
     }
 }

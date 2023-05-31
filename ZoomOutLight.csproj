@@ -27,6 +27,10 @@
         <Reference Include="lib-stripped/FNA.dll" Publicize="true">
             <Private>false</Private>
         </Reference>
+
+        <Reference Include="lib-stripped/FrostHelper.dll" Publicize="true">
+            <Private>false</Private>
+        </Reference>
     </ItemGroup>
 
     <Target Name="CopyFiles" AfterTargets="Build">
