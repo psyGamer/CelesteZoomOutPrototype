@@ -219,141 +219,131 @@ public static class GameSizeUnInliner
 #region Find & Replace Functions
     // NOTE: We don't remove instructions to not break mods relying on them
 
-    private static void FindAndReplace_Int(this ILCursor cursor, string fieldName, int target)
+    private static readonly MethodInfo m_GameWidth  = typeof(ZoomOutModule).GetProperty(nameof(ZoomOutModule.GameWidth)).GetGetMethod();
+    private static readonly MethodInfo m_GameHeight = typeof(ZoomOutModule).GetProperty(nameof(ZoomOutModule.GameHeight)).GetGetMethod();
+    private static readonly MethodInfo m_GameScale  = typeof(ZoomOutModule).GetProperty(nameof(ZoomOutModule.GameScale)).GetGetMethod();
+
+    private static void FindAndReplace_Int(this ILCursor cursor, MethodInfo method, int target)
     {
         if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcI4(target)))
         {
             cursor.Emit(OpCodes.Pop);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
+            cursor.Emit(OpCodes.Call, method);
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name} for {target} (Int)");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {cursor.Context.Method.Name} for {target} (Int)");
         }
     }
-    private static void FindAndReplace_IntAdd(this ILCursor cursor, string fieldName, int target, int offset)
+    private static void FindAndReplace_IntAdd(this ILCursor cursor, MethodInfo method, int target, int offset)
     {
         if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcI4(target)))
         {
             cursor.Emit(OpCodes.Pop);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
+            cursor.Emit(OpCodes.Call, method);
             cursor.Emit(OpCodes.Ldc_I4_S, (sbyte)offset);
             cursor.Emit(OpCodes.Add);
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name} for {target} (IntAdd)");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {cursor.Context.Method.Name} for {target} (IntAdd)");
         }
     }
-    private static void FindAndReplace_IntHalf(this ILCursor cursor, string fieldName, int target)
+    private static void FindAndReplace_IntHalf(this ILCursor cursor, MethodInfo method, int target)
     {
         if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcI4(target)))
         {
             cursor.Emit(OpCodes.Pop);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
+            cursor.Emit(OpCodes.Call, method);
             cursor.Emit(OpCodes.Ldc_I4_2);
             cursor.Emit(OpCodes.Div);
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name} for {target} (FloatHalf)");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {cursor.Context.Method.Name} for {target} (FloatHalf)");
         }
     }
 
-    private static void FindAndReplace_Float(this ILCursor cursor, string fieldName, float target)
+    private static void FindAndReplace_Float(this ILCursor cursor, MethodInfo method, float target)
     {
         if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcR4(target)))
         {
             cursor.Emit(OpCodes.Pop);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
+            cursor.Emit(OpCodes.Call, method);
             cursor.Emit(OpCodes.Conv_R4);
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name} for {target} (Float)");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {cursor.Context.Method.Name} for {target} (Float)");
         }
     }
-    private static void FindAndReplace_FloatAdd(this ILCursor cursor, string fieldName, float target, int offset)
+    private static void FindAndReplace_FloatAdd(this ILCursor cursor, MethodInfo method, float target, int offset)
     {
         if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcR4(target)))
         {
             cursor.Emit(OpCodes.Pop);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
+            cursor.Emit(OpCodes.Call, method);
             cursor.Emit(OpCodes.Ldc_I4_S, (sbyte)offset);
             cursor.Emit(OpCodes.Add);
             cursor.Emit(OpCodes.Conv_R4);
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name} for {target} (FloatAdd)");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {cursor.Context.Method.Name} for {target} (FloatAdd)");
         }
     }
-    private static void FindAndReplace_FloatHalf(this ILCursor cursor, string fieldName, float target)
+    private static void FindAndReplace_FloatHalf(this ILCursor cursor, MethodInfo method, float target)
     {
         if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcR4(target)))
         {
             cursor.Emit(OpCodes.Pop);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
+            cursor.Emit(OpCodes.Call, method);
             cursor.Emit(OpCodes.Ldc_I4_2);
             cursor.Emit(OpCodes.Div);
             cursor.Emit(OpCodes.Conv_R4);
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name} for {target} (FloatHalf)");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {cursor.Context.Method.Name} for {target} (FloatHalf)");
         }
     }
-    private static void FindAndReplace_FloatMul(this ILCursor cursor, string fieldName, float target, float multiplier)
+    private static void FindAndReplace_FloatMul(this ILCursor cursor, MethodInfo method, float target, float multiplier)
     {
         if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchLdcR4(target)))
         {
             cursor.Emit(OpCodes.Pop);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, fieldName);
+            cursor.Emit(OpCodes.Call, method);
             cursor.Emit(OpCodes.Conv_R4);
             cursor.Emit(OpCodes.Ldc_R4, multiplier);
             cursor.Emit(OpCodes.Mul);
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name} for {target} (FloatMul)");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {cursor.Context.Method.Name} for {target} (FloatMul)");
         }
     }
 
-    private static void FindAndReplace_GameWidth_Int(this ILCursor cursor)
-        => cursor.FindAndReplace_Int(nameof(ZoomOutModule.GameWidth), 320);
-    private static void FindAndReplace_GameHeight_Int(this ILCursor cursor)
-        => cursor.FindAndReplace_Int(nameof(ZoomOutModule.GameHeight), 180);
+    private static void FindAndReplace_GameWidth_Int(this ILCursor cursor) => cursor.FindAndReplace_Int(m_GameWidth, 320);
+    private static void FindAndReplace_GameHeight_Int(this ILCursor cursor) => cursor.FindAndReplace_Int(m_GameHeight, 180);
 
-    private static void FindAndReplace_GameWidth_IntAdd(this ILCursor cursor, int target, int offset)
-        => cursor.FindAndReplace_IntAdd(nameof(ZoomOutModule.GameWidth), target, offset);
-    private static void FindAndReplace_GameHeight_IntAdd(this ILCursor cursor, int target, int offset)
-        => cursor.FindAndReplace_IntAdd(nameof(ZoomOutModule.GameHeight), target, offset);
+    private static void FindAndReplace_GameWidth_IntAdd(this ILCursor cursor, int target, int offset) => cursor.FindAndReplace_IntAdd(m_GameWidth, target, offset);
+    private static void FindAndReplace_GameHeight_IntAdd(this ILCursor cursor, int target, int offset) => cursor.FindAndReplace_IntAdd(m_GameHeight, target, offset);
 
-    private static void FindAndReplace_GameWidth_IntHalf(this ILCursor cursor)
-        => cursor.FindAndReplace_IntHalf(nameof(ZoomOutModule.GameWidth), 160);
-    private static void FindAndReplace_GameHeight_IntHalf(this ILCursor cursor)
-        => cursor.FindAndReplace_IntHalf(nameof(ZoomOutModule.GameHeight), 90);
+    private static void FindAndReplace_GameWidth_IntHalf(this ILCursor cursor) => cursor.FindAndReplace_IntHalf(m_GameWidth, 160);
+    private static void FindAndReplace_GameHeight_IntHalf(this ILCursor cursor) => cursor.FindAndReplace_IntHalf(m_GameHeight, 90);
 
 
-    private static void FindAndReplace_GameWidth_Float(this ILCursor cursor)
-        => cursor.FindAndReplace_Float(nameof(ZoomOutModule.GameWidth), 320.0f);
-    private static void FindAndReplace_GameHeight_Float(this ILCursor cursor)
-        => cursor.FindAndReplace_Float(nameof(ZoomOutModule.GameHeight), 180.0f);
+    private static void FindAndReplace_GameWidth_Float(this ILCursor cursor) => cursor.FindAndReplace_Float(m_GameWidth, 320.0f);
+    private static void FindAndReplace_GameHeight_Float(this ILCursor cursor) => cursor.FindAndReplace_Float(m_GameHeight, 180.0f);
 
-    private static void FindAndReplace_GameWidth_FloatAdd(this ILCursor cursor, float target, int offset)
-        => cursor.FindAndReplace_FloatAdd(nameof(ZoomOutModule.GameWidth), target, offset);
-    private static void FindAndReplace_GameHeight_FloatAdd(this ILCursor cursor, float target, int offset)
-        => cursor.FindAndReplace_FloatAdd(nameof(ZoomOutModule.GameHeight), target, offset);
+    private static void FindAndReplace_GameWidth_FloatAdd(this ILCursor cursor, float target, int offset) => cursor.FindAndReplace_FloatAdd(m_GameWidth, target, offset);
+    private static void FindAndReplace_GameHeight_FloatAdd(this ILCursor cursor, float target, int offset) => cursor.FindAndReplace_FloatAdd(m_GameHeight, target, offset);
 
-    private static void FindAndReplace_GameWidth_FloatHalf(this ILCursor cursor)
-        => cursor.FindAndReplace_FloatHalf(nameof(ZoomOutModule.GameWidth), 160.0f);
-    private static void FindAndReplace_GameHeight_FloatHalf(this ILCursor cursor)
-        => cursor.FindAndReplace_FloatHalf(nameof(ZoomOutModule.GameHeight), 90.0f);
+    private static void FindAndReplace_GameWidth_FloatHalf(this ILCursor cursor) => cursor.FindAndReplace_FloatHalf(m_GameWidth, 160.0f);
+    private static void FindAndReplace_GameHeight_FloatHalf(this ILCursor cursor) => cursor.FindAndReplace_FloatHalf(m_GameHeight, 90.0f);
 
-    private static void FindAndReplace_GameWidth_FloatMul(this ILCursor cursor, float target, float multiplier)
-        => cursor.FindAndReplace_FloatMul(nameof(ZoomOutModule.GameWidth), target, multiplier);
-    private static void FindAndReplace_GameHeight_FloatMul(this ILCursor cursor, float target, float multiplier)
-        => cursor.FindAndReplace_FloatMul(nameof(ZoomOutModule.GameHeight), target, multiplier);
+    private static void FindAndReplace_GameWidth_FloatMul(this ILCursor cursor, float target, float multiplier) => cursor.FindAndReplace_FloatMul(m_GameWidth, target, multiplier);
+    private static void FindAndReplace_GameHeight_FloatMul(this ILCursor cursor, float target, float multiplier) => cursor.FindAndReplace_FloatMul(m_GameHeight, target, multiplier);
 
 #endregion
 
@@ -378,7 +368,7 @@ public static class GameSizeUnInliner
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {ctx.Method.Name}");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {ctx.Method.Name}");
         }
     }
 
@@ -436,7 +426,7 @@ public static class GameSizeUnInliner
         if (cursor.TryGotoNext(instr => instr.MatchCall<Matrix>("CreateScale")))
         {
             // Zoom out depending on GameScale
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, nameof(ZoomOutModule.GameScale));
+            cursor.Emit(OpCodes.Call, m_GameScale);
             cursor.Emit(OpCodes.Div);
 
             cursor.FindAndReplace_GameWidth_Float();
@@ -450,7 +440,7 @@ public static class GameSizeUnInliner
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {ctx.Method.Name}");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {ctx.Method.Name}");
         }
     }
 
@@ -566,13 +556,13 @@ public static class GameSizeUnInliner
         {
             cursor.Emit(OpCodes.Pop);
             cursor.Emit(OpCodes.Ldc_R4, 1.0f);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, nameof(ZoomOutModule.GameWidth));
+            cursor.Emit(OpCodes.Call, m_GameWidth);
             cursor.Emit(OpCodes.Conv_R4);
             cursor.Emit(OpCodes.Div);
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name}");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {cursor.Context.Method.Name}");
         }
 
         // 1.0f / GameHeight
@@ -580,13 +570,13 @@ public static class GameSizeUnInliner
         {
             cursor.Emit(OpCodes.Pop);
             cursor.Emit(OpCodes.Ldc_R4, 1.0f);
-            cursor.Emit<ZoomOutModule>(OpCodes.Ldsfld, nameof(ZoomOutModule.GameWidth));
+            cursor.Emit(OpCodes.Call, m_GameHeight);
             cursor.Emit(OpCodes.Conv_R4);
             cursor.Emit(OpCodes.Div);
         }
         else
         {
-            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"FAILED TO UN-INLINE INSIDE {cursor.Context.Method.Name}");
+            Logger.Log(LogLevel.Error, ZoomOutModule.LoggerTag, $"Failed to un-inline at {cursor.Context.Method.Name}");
         }
     }
 
